@@ -10,7 +10,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-
 resource "tls_private_key" "ec2_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -28,12 +27,22 @@ resource "local_file" "private_key" {
 }
 
 
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
 resource "aws_instance" "python_app" {
   ami           = var.ami_id
-  count         = 
   instance_type = var.instance_type
   key_name      = aws_key_pair.ec2_key_pair.key_name
-
+  subnet_id     = data.aws_subnets.default.ids[0]
   user_data = <<-EOF
               #!/bin/bash
               
@@ -52,51 +61,82 @@ resource "aws_instance" "python_app" {
               EOF
 
   tags = {
-    Name = "MycrudAppInstance-${count.index + 1}"
+    Name = "MyCRUDAppInstance"
   }
 
-  security_groups = [aws_security_group.python_app_sg.name]
+  vpc_security_group_ids = [aws_security_group.python_app_sg.id]
 }
+yes
 
 resource "aws_instance" "test_app" {
   ami           = var.ami_id
   instance_type = var.instance_type
   key_name      = aws_key_pair.ec2_key_pair.key_name
-
+  subnet_id     = data.aws_subnets.default.ids[0]
   
   tags = {
     Name = "MyTestAppInstance"
   }
 
-  security_groups = [aws_security_group.python_app_sg.name]
+  vpc_security_group_ids = [aws_security_group.python_app_sg.id]
 }
 
+resource "aws_db_subnet_group" "main" {
+  name       = "main-subnet-group"
+  subnet_ids = [data.aws_subnets.default.ids[1], data.aws_subnets.default.ids[2]]
+  tags = {
+    Name = "Main subnet group"
+  }
+}
+
+resource "aws_db_instance" "postgres" {
+  identifier        = "my-postgres-db"
+  engine            = "postgres"
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  db_name              = "mycruddb"
+  username          = "dbuser"
+  password          = "alberto123"
+  publicly_accessible     = false
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]
+  skip_final_snapshot    = true
+}
+
+
+
+resource "aws_security_group" "rds_sg" {
+  name        = "rds_sg"
+  description = "Allow Postgres access from EC2"
+  vpc_id      = data.aws_vpc.default.id
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.python_app_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
 
 resource "aws_security_group" "python_app_sg" {
   name        = "python_app_sg"
   description = "Allow HTTP and SSH"
-
-  
-}
-
-resource "aws_vpc_security_group_ingress_rule" "allow_ssh" {
-    security_group_id = aws_security_group.python_app_sg.id
+  vpc_id      = data.aws_vpc.default.id
+  ingress {  
     from_port   = 22
     to_port     = 22
-    ip_protocol    = "tcp"
-    cidr_ipv4 = "0.0.0.0/0"
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-
-resource "aws_vpc_security_group_ingress_rule" "allow_8000" {
-    security_group_id = aws_security_group.python_app_sg.id
-    from_port   = 8000
-    to_port     = 8000
-    ip_protocol    = "tcp"
-    cidr_ipv4 = "0.0.0.0/0"
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-
-resource "aws_vpc_security_group_egress_rule" "allow_all_egress" {
-    security_group_id = aws_security_group.python_app_sg.id
-    ip_protocol = "-1"
-    cidr_ipv4 = "0.0.0.0/0"
-  }
+}
