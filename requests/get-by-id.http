@@ -1,2 +1,2 @@
-GET http://localhost:8000/users/2 HTTP/1.1
+GET http://localhost:8000/users/alberto HTTP/1.1
 

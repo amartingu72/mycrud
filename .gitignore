@@ -1,0 +1,4 @@
+terraform/.terraform/*
+terraform/.terraform.lock.hcl
+terraform/my-ec2-key.pem
+__pycache__/main.cpython-312.pyc
