@@ -50,7 +50,8 @@ resource "aws_instance" "python_app" {
               yum install -y python3 git
               yum install -y python3-pip
               
-              pip3 install fastapi uvicorn sqlalchemy pydantic
+             
+              pip3 install fastapi uvicorn sqlalchemy pydantic psycopg2-binary
 
               # Clone your app repo (replace with your repo)
               git clone https://github.com/amartingu72/mycrud.git /home/ec2-user/app
@@ -66,7 +67,7 @@ resource "aws_instance" "python_app" {
 
   vpc_security_group_ids = [aws_security_group.python_app_sg.id]
 }
-yes
+
 
 resource "aws_instance" "test_app" {
   ami           = var.ami_id
