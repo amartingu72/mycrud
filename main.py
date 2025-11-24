@@ -5,8 +5,14 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Database configuration
-DATABASE_URL = "postgresql://dbuser:alberto123@my-postgres-db.cvjg7sc4y0q1.eu-west-1.rds.amazonaws.com/mycruddb"  # Replace with your credentials
-# DATABASE_URL = "postgresql://postgres:alberto123@localhost/postgres"  # Replace with your credentials
+
+db_host = os.getenv("DB_HOST")
+db_user = os.getenv("DB_USER")
+db_password = os.getenv("DB_PASSWORD")
+db_name = os.getenv("DB_NAME")
+
+DATABASE_URL = "postgresql://{}:{}@{}/{}".format(db_user,db_password,db_host,db_password)
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()

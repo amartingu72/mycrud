@@ -37,50 +37,103 @@ data "aws_subnets" "default" {
     values = [data.aws_vpc.default.id]
   }
 }
+resource "aws_s3_bucket" "app_bucket" {
+  bucket = "mycrud-bucket"
+}
 
-resource "aws_instance" "python_app" {
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  key_name      = aws_key_pair.ec2_key_pair.key_name
-  subnet_id     = data.aws_subnets.default.ids[0]
-  user_data = <<-EOF
-              #!/bin/bash
-              
-              yum update -y
-              yum install -y python3 git
-              yum install -y python3-pip
-              
-             
-              pip3 install fastapi uvicorn sqlalchemy pydantic psycopg2-binary
-
-              # Clone your app repo (replace with your repo)
-              git clone https://github.com/amartingu72/mycrud.git /home/ec2-user/app
-              
-              cd /home/ec2-user/app
-              # Run the app (adjust as needed)
-              nohup uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
-              EOF
-
-  tags = {
-    Name = "MyCRUDAppInstance"
-  }
-
-  vpc_security_group_ids = [aws_security_group.python_app_sg.id]
+resource "aws_s3_object" "app_zip" {
+  bucket = aws_s3_bucket.app_bucket.id
+  key    = "app.zip"
+  source = "app.zip" # Path to your zipped Python API
 }
 
 
-resource "aws_instance" "test_app" {
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  key_name      = aws_key_pair.ec2_key_pair.key_name
-  subnet_id     = data.aws_subnets.default.ids[0]
+
+resource "aws_iam_role" "eb_role" {
+  name = "elasticbeanstalk-ec2-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "eb_instance_profile" {
+  name = "elasticbeanstalk-ec2-instance-profile"
+  role = aws_iam_role.eb_role.name
+}
+
+
+resource "aws_iam_role_policy_attachment" "eb_web_tier" {
+  role       = aws_iam_role.eb_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
+}
+
+
+
+resource "aws_elastic_beanstalk_application_version" "app_version" {
+  application = aws_elastic_beanstalk_application.app.name
+  name = "v1"
+  bucket        = aws_s3_bucket.app_bucket.id
+  key           = aws_s3_object.app_zip.key
+}
+
+
+resource "aws_elastic_beanstalk_application" "app" {
+  name        = "mycrud"
+  description = "MyCRUD Application"
+}
+
+resource "aws_elastic_beanstalk_environment" "env" {
+  name                = "development"
+  application         = aws_elastic_beanstalk_application.app.name
+  solution_stack_name = "64bit Amazon Linux 2023 v4.7.5 running Python 3.9"
+  version_label = aws_elastic_beanstalk_application_version.app_version.name
   
-  tags = {
-    Name = "MyTestAppInstance"
+  setting {
+    namespace = "aws:autoscaling:launchconfiguration"
+    name      = "IamInstanceProfile"
+    value     = aws_iam_instance_profile.eb_instance_profile.name
   }
 
-  vpc_security_group_ids = [aws_security_group.python_app_sg.id]
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "DB_HOST"
+    value     = aws_db_instance.postgres.address
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "DB_NAME"
+    value     = aws_db_instance.postgres.db_name
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "DB_USER"
+    value     = aws_db_instance.postgres.username
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "DB_PASSWORD"
+    value     = aws_db_instance.postgres.password
+  }
 }
+
+
+
+
+
+
 
 resource "aws_db_subnet_group" "main" {
   name       = "main-subnet-group"
@@ -147,3 +200,7 @@ resource "aws_security_group" "python_app_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+
+
+
