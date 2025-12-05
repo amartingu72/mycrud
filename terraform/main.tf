@@ -43,8 +43,8 @@ resource "aws_s3_bucket" "app_bucket" {
 
 resource "aws_s3_object" "app_zip" {
   bucket = aws_s3_bucket.app_bucket.id
-  key    = "app.zip"
-  source = "app.zip" # Path to your zipped Python API
+  key    = "app-v5.zip"
+  source = "app-v5.zip" # Path to your zipped Python API
 }
 
 
@@ -80,7 +80,7 @@ resource "aws_iam_role_policy_attachment" "eb_web_tier" {
 
 resource "aws_elastic_beanstalk_application_version" "app_version" {
   application = aws_elastic_beanstalk_application.app.name
-  name = "v1"
+  name = "v5"
   bucket        = aws_s3_bucket.app_bucket.id
   key           = aws_s3_object.app_zip.key
 }

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, sessionmaker
-
+import os
 # Database configuration
 
 db_host = os.getenv("DB_HOST")
@@ -11,7 +11,7 @@ db_user = os.getenv("DB_USER")
 db_password = os.getenv("DB_PASSWORD")
 db_name = os.getenv("DB_NAME")
 
-DATABASE_URL = "postgresql://{}:{}@{}/{}".format(db_user,db_password,db_host,db_password)
+DATABASE_URL = "postgresql://{}:{}@{}/{}".format(db_user,db_password,db_host,db_name)
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
